@@ -27,7 +27,7 @@ const useDeviceMotion = (
   onPotholeDetected: () => void
 ) => {
   const lastDetectionTimestamp = useRef<number>(0);
-  const SHAKE_THRESHOLD = 15; // m/s^2
+  const SHAKE_THRESHOLD = 30; // m/s^2
   const COOLDOWN_PERIOD = 3000; // 3 seconds
 
   const handleMotionEvent = useCallback((event: DeviceMotionEvent) => {
