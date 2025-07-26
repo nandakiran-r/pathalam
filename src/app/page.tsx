@@ -4,9 +4,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // TypeScript interfaces
 interface Pothole {
+  id?: string;
   latitude: number;
   longitude: number;
   time: Date;
+  created_at?: string;
 }
 
 interface DeviceMotionEventWithPermission extends DeviceMotionEvent {
@@ -19,6 +21,69 @@ declare global {
     requestPermission?: () => Promise<'granted' | 'denied'>;
   }
 }
+
+// Supabase configuration - Replace with your actual values
+const SUPABASE_URL = 'https://ahecqqpoxwwbexkpwihj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoZWNxcXBveHd3YmV4a3B3aWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM1MDM0MTAsImV4cCI6MjA2OTA3OTQxMH0.iLqeqs8eB9c7CJeD3IguahpOji5xVWASNUzU8Bces3w';
+
+// Simple Supabase client
+class SupabaseClient {
+  private baseUrl: string;
+  private apiKey: string;
+
+  constructor(url: string, key: string) {
+    this.baseUrl = url;
+    this.apiKey = key;
+  }
+
+  async insert(table: string, data: any) {
+    try {
+      const response = await fetch(`${this.baseUrl}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': this.apiKey,
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+  }
+
+  async select(table: string, query: string = '*') {
+    try {
+      const response = await fetch(`${this.baseUrl}/rest/v1/${table}?select=${query}&order=created_at.desc`, {
+        method: 'GET',
+        headers: {
+          'apikey': this.apiKey,
+          'Authorization': `Bearer ${this.apiKey}`,
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Supabase select error:', error);
+      throw error;
+    }
+  }
+}
+
+// Initialize Supabase client
+const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Custom hook for device motion detection
 const useDeviceMotion = (
@@ -131,8 +196,33 @@ const MapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
   </svg>
 );
 
+const RefreshIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="20" 
+    height="20" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <polyline points="23 4 23 10 17 10"></polyline>
+    <polyline points="1 20 1 14 7 14"></polyline>
+    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+  </svg>
+);
+
 // Map Component
-const OSRMMap: React.FC<{ potholes: Pothole[]; currentLocation: { lat: number; lng: number } | null }> = ({ potholes, currentLocation }) => {
+const OSRMMap: React.FC<{ 
+  localPotholes: Pothole[]; 
+  allPotholes: Pothole[]; 
+  currentLocation: { lat: number; lng: number } | null;
+  onRefreshData: () => void;
+  isLoading: boolean;
+}> = ({ localPotholes, allPotholes, currentLocation, onRefreshData, isLoading }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -172,7 +262,7 @@ const OSRMMap: React.FC<{ potholes: Pothole[]; currentLocation: { lat: number; l
 
       // Add OpenStreetMap tiles with OSRM routing capability
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors | OSRM Routing',
+        attribution: '© OpenStreetMap contributors | OSRM Routing | Supabase Storage',
         maxZoom: 19,
       }).addTo(mapInstanceRef.current);
 
@@ -214,38 +304,92 @@ const OSRMMap: React.FC<{ potholes: Pothole[]; currentLocation: { lat: number; l
     });
     markersRef.current = [];
 
-    // Add new pothole markers
-    potholes.forEach((pothole, index) => {
+    // Add all potholes from database (historical data)
+    allPotholes.forEach((pothole) => {
+      const isLocal = localPotholes.some(local => 
+        Math.abs(local.latitude - pothole.latitude) < 0.00001 && 
+        Math.abs(local.longitude - pothole.longitude) < 0.00001
+      );
+
       const potholeIcon = L.divIcon({
-        html: `<div style="background-color: #ef4444; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">!</div>`,
+        html: `<div style="background-color: ${isLocal ? '#ef4444' : '#f97316'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">!</div>`,
         className: 'pothole-marker',
         iconSize: [20, 20],
         iconAnchor: [10, 10]
       });
 
+      const potholeDate = pothole.created_at ? new Date(pothole.created_at) : pothole.time;
+      const timeAgo = getTimeAgo(potholeDate);
+
       const marker = L.marker([pothole.latitude, pothole.longitude], { icon: potholeIcon })
         .addTo(mapInstanceRef.current)
         .bindPopup(`
           <div style="font-family: system-ui, -apple-system, sans-serif;">
-            <h3 style="margin: 0 0 8px 0; color: #ef4444; font-size: 14px;">Pothole Detected</h3>
+            <h3 style="margin: 0 0 8px 0; color: ${isLocal ? '#ef4444' : '#f97316'}; font-size: 14px;">
+              ${isLocal ? 'Your Detection' : 'Community Report'}
+            </h3>
             <p style="margin: 4px 0; font-size: 12px;"><strong>Location:</strong> ${pothole.latitude.toFixed(6)}, ${pothole.longitude.toFixed(6)}</p>
-            <p style="margin: 4px 0; font-size: 12px;"><strong>Time:</strong> ${pothole.time.toLocaleString()}</p>
+            <p style="margin: 4px 0; font-size: 12px;"><strong>Detected:</strong> ${timeAgo}</p>
+            <p style="margin: 4px 0; font-size: 11px; color: #666;">${isLocal ? 'Detected by you' : 'Shared by the community'}</p>
           </div>
         `);
 
       markersRef.current.push(marker);
-
-      // If this is the newest pothole, center the map on it and open popup
-      if (index === 0 && potholes.length > 0) {
-        mapInstanceRef.current.setView([pothole.latitude, pothole.longitude], 16);
-        marker.openPopup();
-      }
     });
-  }, [potholes]);
+
+    // If there's a new local pothole, center the map on it
+    if (localPotholes.length > 0) {
+      const latestLocal = localPotholes[0];
+      mapInstanceRef.current.setView([latestLocal.latitude, latestLocal.longitude], 16);
+    }
+  }, [localPotholes, allPotholes]);
+
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
 
   return (
-    <div className="w-full h-96 rounded-lg overflow-hidden shadow-lg">
-      <div ref={mapRef} className="w-full h-full" />
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">
+          Community Pothole Map
+        </h2>
+        <button
+          onClick={onRefreshData}
+          disabled={isLoading}
+          className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-lg shadow-lg hover:scale-105 transform transition-transform duration-300 focus:outline-none focus:ring-4 focus:ring-green-300 flex items-center gap-2 disabled:opacity-50"
+        >
+          <RefreshIcon className={isLoading ? 'animate-spin' : ''} />
+          {isLoading ? 'Loading...' : 'Refresh'}
+        </button>
+      </div>
+      
+      <div className="w-full h-96 rounded-lg overflow-hidden shadow-lg mb-4">
+        <div ref={mapRef} className="w-full h-full" />
+      </div>
+      
+      <div className="flex justify-between text-sm text-gray-400">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>
+            <span>Your Detections ({localPotholes.length})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-orange-500 rounded-full border-2 border-white"></div>
+            <span>Community Reports ({allPotholes.length - localPotholes.length})</span>
+          </div>
+        </div>
+        <span>Total: {allPotholes.length} potholes</span>
+      </div>
     </div>
   );
 };
@@ -253,10 +397,71 @@ const OSRMMap: React.FC<{ potholes: Pothole[]; currentLocation: { lat: number; l
 // Main component
 const PotholeDetector: React.FC = () => {
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
-  const [potholes, setPotholes] = useState<Pothole[]>([]);
+  const [localPotholes, setLocalPotholes] = useState<Pothole[]>([]);
+  const [allPotholes, setAllPotholes] = useState<Pothole[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('Click "Start Monitoring" to begin.');
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showMap, setShowMap] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(false);
+
+  // Check if Supabase is configured
+  useEffect(() => {
+    const configured = SUPABASE_URL.includes('supabase.co') && 
+                     SUPABASE_ANON_KEY.length > 50 && 
+                     !SUPABASE_ANON_KEY.includes('YOUR_ACTUAL_KEY_HERE');
+    setIsSupabaseConfigured(configured);
+    
+    if (configured) {
+      loadAllPotholes();
+    }
+  }, []);
+
+  const loadAllPotholes = async () => {
+    if (!isSupabaseConfigured) return;
+    
+    setIsLoading(true);
+    try {
+      const data = await supabase.select('potholes', '*');
+      const formattedData = data.map((pothole: any) => ({
+        id: pothole.id,
+        latitude: pothole.latitude,
+        longitude: pothole.longitude,
+        time: new Date(pothole.created_at),
+        created_at: pothole.created_at
+      }));
+      setAllPotholes(formattedData);
+      console.log('Loaded potholes from Supabase:', formattedData.length);
+    } catch (error) {
+      console.error('Error loading potholes:', error);
+      setStatusMessage('Error loading community data. Check your Supabase configuration.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const savePotholeToSupabase = async (pothole: Pothole) => {
+    if (!isSupabaseConfigured) {
+      console.log('Supabase not configured, skipping save');
+      return;
+    }
+
+    try {
+      const potholeData = {
+        latitude: pothole.latitude,
+        longitude: pothole.longitude,
+        created_at: new Date().toISOString()
+      };
+
+      await supabase.insert('potholes', potholeData);
+      console.log('Pothole saved to Supabase successfully');
+      
+      // Refresh the data to show the new pothole
+      await loadAllPotholes();
+    } catch (error) {
+      console.error('Error saving pothole to Supabase:', error);
+    }
+  };
 
   const recordPotholeLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -265,7 +470,7 @@ const PotholeDetector: React.FC = () => {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
         const newPothole: Pothole = { 
           latitude, 
@@ -275,12 +480,16 @@ const PotholeDetector: React.FC = () => {
 
         console.log('Pothole Location:', newPothole);
         
-        // Add the new pothole to the beginning of the list
-        setPotholes(prev => [newPothole, ...prev]);
-        setStatusMessage('Location recorded! Monitoring...');
+        // Add the new pothole to local list
+        setLocalPotholes(prev => [newPothole, ...prev]);
+        setStatusMessage('Location recorded! Saving to community database...');
         
         // Update current location
         setCurrentLocation({ lat: latitude, lng: longitude });
+
+        // Save to Supabase
+        await savePotholeToSupabase(newPothole);
+        setStatusMessage('Saved to community database! Monitoring...');
       },
       (error) => {
         console.error("Error getting location:", error);
@@ -292,7 +501,7 @@ const PotholeDetector: React.FC = () => {
         maximumAge: 0,
       }
     );
-  }, []);
+  }, [isSupabaseConfigured]);
 
   // Custom hook for handling device motion
   const onPotholeDetected = useCallback(() => {
@@ -351,9 +560,28 @@ const PotholeDetector: React.FC = () => {
         {/* Header Section */}
         <header className="text-center my-8">
           <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-            Pothole Reporting System
+            Community Pothole Reporter
           </h1>
-          <p className="text-gray-400 mt-2">Using device sensors to map road hazards with OSRM routing.</p>
+          <p className="text-gray-400 mt-2">
+            Mapping road hazards together with real-time community data
+          </p>
+          {!isSupabaseConfigured && (
+            <div className="mt-4 p-4 bg-yellow-900 border border-yellow-600 rounded-lg">
+              <p className="text-yellow-200 text-sm mb-2">
+                ⚠️ Supabase not configured properly. Community features disabled.
+              </p>
+              <details className="text-xs text-yellow-300">
+                <summary className="cursor-pointer hover:text-yellow-100">Setup Instructions</summary>
+                <div className="mt-2 space-y-2">
+                  <p>1. Create a Supabase project at supabase.com</p>
+                  <p>2. Create a 'potholes' table with 'latitude' and 'longitude' columns (both float8)</p>
+                  <p>3. Enable RLS and create policies for public read/insert access</p>
+                  <p>4. Get your Project URL and anon key from Settings → API</p>
+                  <p>5. Replace the values in the code configuration</p>
+                </div>
+              </details>
+            </div>
+          )}
         </header>
 
         {/* Main Content Area */}
@@ -382,39 +610,42 @@ const PotholeDetector: React.FC = () => {
                 </button>
               )}
               
-              {potholes.length > 0 && (
-                <button
-                  onClick={() => setShowMap(!showMap)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg shadow-lg hover:scale-105 transform transition-transform duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center gap-2"
-                >
-                  <MapIcon />
-                  {showMap ? 'Hide Map' : 'Show Map'}
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setShowMap(!showMap);
+                  if (!showMap && isSupabaseConfigured) {
+                    loadAllPotholes();
+                  }
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg shadow-lg hover:scale-105 transform transition-transform duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center gap-2"
+              >
+                <MapIcon />
+                {showMap ? 'Hide Map' : 'Show Community Map'}
+              </button>
             </div>
           </div>
 
           {/* Map Section */}
-          {showMap && potholes.length > 0 && (
+          {showMap && (
             <div className="mb-8">
-              <h2 className="text-2xl font-semibold text-center mb-4">
-                Pothole Locations Map
-              </h2>
-              <OSRMMap potholes={potholes} currentLocation={currentLocation} />
-              <p className="text-sm text-gray-400 text-center mt-2">
-                Red markers show detected potholes. Blue marker shows your location.
-              </p>
+              <OSRMMap 
+                localPotholes={localPotholes} 
+                allPotholes={allPotholes}
+                currentLocation={currentLocation} 
+                onRefreshData={loadAllPotholes}
+                isLoading={isLoading}
+              />
             </div>
           )}
 
-          {/* Detected Potholes List Section */}
-          {potholes.length > 0 && (
+          {/* Your Detections List Section */}
+          {localPotholes.length > 0 && (
             <div className="pt-6 border-t border-gray-700">
               <h2 className="text-2xl font-semibold text-center mb-4">
-                Detected Potholes ({potholes.length})
+                Your Detections ({localPotholes.length})
               </h2>
               <ul className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                {potholes.map((pothole, index) => (
+                {localPotholes.map((pothole, index) => (
                   <li
                     key={`${pothole.latitude}-${pothole.longitude}-${pothole.time.getTime()}`}
                     className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4 shadow-md animate-fade-in"
@@ -429,11 +660,18 @@ const PotholeDetector: React.FC = () => {
                       <p className="text-xs text-gray-400">
                         {pothole.time.toLocaleString()}
                       </p>
-                      {index === 0 && (
-                        <span className="inline-block mt-1 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
-                          Latest
-                        </span>
-                      )}
+                      <div className="flex gap-2 mt-2">
+                        {index === 0 && (
+                          <span className="inline-block px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                            Latest
+                          </span>
+                        )}
+                        {isSupabaseConfigured && (
+                          <span className="inline-block px-2 py-1 bg-green-500 text-white text-xs rounded-full">
+                            Shared with Community
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -441,7 +679,7 @@ const PotholeDetector: React.FC = () => {
             </div>
           )}
 
-          {potholes.length === 0 && isMonitoring && (
+          {localPotholes.length === 0 && isMonitoring && (
             <div className="text-center py-8">
               <p className="text-gray-400">No potholes detected yet. Drive around to start mapping!</p>
             </div>
