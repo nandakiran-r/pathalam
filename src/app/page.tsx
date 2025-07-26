@@ -88,33 +88,59 @@ const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Custom hook for device motion detection
 const useDeviceMotion = (
   isMonitoring: boolean,
-  onPotholeDetected: () => void
+  onPotholeDetected: (severity: 'normal' | 'high') => void
 ) => {
+  const shakeTimestamps = useRef<number[]>([]);
   const lastDetectionTimestamp = useRef<number>(0);
-  const SHAKE_THRESHOLD = 30; // m/s^2
-  const COOLDOWN_PERIOD = 3000; // 3 seconds
+
+  const SHAKE_MAGNITUDE_THRESHOLD = 18; // Shake sensitivity
+  const SHAKING_WINDOW = 5000; // 5 seconds
+  const REQUIRED_SHAKES_FOR_ACCIDENT = 8; // Number of shakes in 5s to trigger accident
+  const COOLDOWN_PERIOD = 3000; // Debounce period between detections
 
   const handleMotionEvent = useCallback((event: DeviceMotionEvent) => {
     const acceleration = event.accelerationIncludingGravity;
-    if (!acceleration || !acceleration.z) return;
+    if (!acceleration) return;
 
-    const currentTime = Date.now();
-    if (currentTime - lastDetectionTimestamp.current < COOLDOWN_PERIOD) {
-      return; // Still in cooldown period
+    const x = acceleration.x ?? 0;
+    const y = acceleration.y ?? 0;
+    const z = acceleration.z ?? 0;
+    const magnitude = Math.sqrt(x * x + y * y + z * z);
+
+    const now = Date.now();
+
+    // Remove outdated shake timestamps older than the window
+    shakeTimestamps.current = shakeTimestamps.current.filter(
+      (timestamp) => now - timestamp <= SHAKING_WINDOW
+    );
+
+    if (magnitude > SHAKE_MAGNITUDE_THRESHOLD) {
+      shakeTimestamps.current.push(now);
     }
 
-    if (Math.abs(acceleration.z) > SHAKE_THRESHOLD) {
-      console.log('Shake detected with Z-acceleration:', acceleration.z);
-      lastDetectionTimestamp.current = currentTime;
-      onPotholeDetected();
+    const recentShakes = shakeTimestamps.current.length;
+
+    if (recentShakes >= REQUIRED_SHAKES_FOR_ACCIDENT) {
+      if (now - lastDetectionTimestamp.current > COOLDOWN_PERIOD) {
+        console.log('🚨 Sustained irregular shaking detected — Accident assumed.');
+        lastDetectionTimestamp.current = now;
+        shakeTimestamps.current = []; // Reset after trigger
+        onPotholeDetected('high');
+      }
+    } else if (magnitude > SHAKE_MAGNITUDE_THRESHOLD) {
+      if (now - lastDetectionTimestamp.current > COOLDOWN_PERIOD) {
+        console.log('⚠️ Normal pothole detected with magnitude:', magnitude.toFixed(2));
+        lastDetectionTimestamp.current = now;
+        onPotholeDetected('normal');
+      }
     }
-  }, [onPotholeDetected, COOLDOWN_PERIOD, SHAKE_THRESHOLD]);
+  }, [onPotholeDetected]);
 
   useEffect(() => {
     if (isMonitoring) {
       window.addEventListener('devicemotion', handleMotionEvent);
       console.log('Device motion listener added.');
-      
+
       return () => {
         window.removeEventListener('devicemotion', handleMotionEvent);
         console.log('Device motion listener removed.');
@@ -122,6 +148,7 @@ const useDeviceMotion = (
     }
   }, [isMonitoring, handleMotionEvent]);
 };
+
 
 // Icons as React components
 const ZapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -212,6 +239,25 @@ const RefreshIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
     <polyline points="23 4 23 10 17 10"></polyline>
     <polyline points="1 20 1 14 7 14"></polyline>
     <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+  </svg>
+);
+
+const AlertTriangleIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
   </svg>
 );
 
@@ -479,6 +525,8 @@ const PotholeDetector: React.FC = () => {
   const [showMap, setShowMap] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(false);
+  const [showEmergencyAlert, setShowEmergencyAlert] = useState<boolean>(false);
+  const [emergencyAlertMessage, setEmergencyAlertMessage] = useState<string>('');
 
   // Check if Supabase is configured
   useEffect(() => {
@@ -538,10 +586,16 @@ const PotholeDetector: React.FC = () => {
     }
   };
 
-  const recordPotholeLocation = useCallback(() => {
+  const recordPotholeLocation = useCallback((severity: 'normal' | 'high') => {
     if (!navigator.geolocation) {
       setStatusMessage('Error: Geolocation is not supported by your browser.');
       return;
+    }
+
+    if (severity === 'high') {
+      setEmergencyAlertMessage('Severe impact detected! Possible accident risk!');
+      setShowEmergencyAlert(true);
+      setTimeout(() => setShowEmergencyAlert(false), 5000);
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -557,14 +611,18 @@ const PotholeDetector: React.FC = () => {
         
         // Add the new pothole to local list
         setLocalPotholes(prev => [newPothole, ...prev]);
-        setStatusMessage('Location recorded! Saving to community database...');
+        setStatusMessage(severity === 'high' 
+          ? 'Severe impact recorded! Saving to database...' 
+          : 'Location recorded! Saving to community database...');
         
         // Update current location
         setCurrentLocation({ lat: latitude, lng: longitude });
 
         // Save to Supabase
         await savePotholeToSupabase(newPothole);
-        setStatusMessage('Saved to community database! Monitoring...');
+        setStatusMessage(severity === 'high' 
+          ? 'Severe impact saved to database!' 
+          : 'Saved to community database! Monitoring...');
       },
       (error) => {
         console.error("Error getting location:", error);
@@ -579,9 +637,11 @@ const PotholeDetector: React.FC = () => {
   }, [isSupabaseConfigured]);
 
   // Custom hook for handling device motion
-  const onPotholeDetected = useCallback(() => {
-    setStatusMessage('Pothole detected! Getting location...');
-    recordPotholeLocation();
+  const onPotholeDetected = useCallback((severity: 'normal' | 'high') => {
+    setStatusMessage(severity === 'high' 
+      ? 'Severe impact detected! Getting location...' 
+      : 'Pothole detected! Getting location...');
+    recordPotholeLocation(severity);
   }, [recordPotholeLocation]);
 
   useDeviceMotion(isMonitoring, onPotholeDetected);
@@ -631,6 +691,16 @@ const PotholeDetector: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-4 bg-gray-900 text-white font-sans">
+      {/* Emergency Alert Banner */}
+      {showEmergencyAlert && (
+        <div className="fixed top-0 left-0 right-0 z-50 animate-slide-down">
+          <div className="bg-red-600 text-white p-4 shadow-lg flex items-center justify-center gap-3">
+            <AlertTriangleIcon className="text-white" />
+            <span className="font-bold">{emergencyAlertMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-4xl mx-auto">
         {/* Header Section */}
         <header className="text-center my-8">
@@ -774,8 +844,23 @@ const PotholeDetector: React.FC = () => {
           }
         }
         
+        @keyframes slide-down {
+          from { 
+            opacity: 0; 
+            transform: translateY(-100%); 
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0); 
+          }
+        }
+        
         .animate-fade-in {
           animation: fade-in 0.5s ease-out forwards;
+        }
+        
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out forwards;
         }
         
         .user-location-marker {
