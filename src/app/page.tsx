@@ -121,19 +121,24 @@ const useDeviceMotion = (
     const recentShakes = shakeTimestamps.current.length;
 
     if (recentShakes >= REQUIRED_SHAKES_FOR_ACCIDENT) {
+      // This block handles a sustained shaking event, likely an accident.
       if (now - lastDetectionTimestamp.current > COOLDOWN_PERIOD) {
         console.log('🚨 Sustained irregular shaking detected — Accident assumed.');
+
+        // Reset detection state after reporting
         lastDetectionTimestamp.current = now;
-        shakeTimestamps.current = []; // Reset after trigger
+        shakeTimestamps.current = [];
         onPotholeDetected('high');
       }
     } else if (magnitude > SHAKE_MAGNITUDE_THRESHOLD) {
+      // This block handles a single, large shake event, like a pothole.
       if (now - lastDetectionTimestamp.current > COOLDOWN_PERIOD) {
         console.log('⚠️ Normal pothole detected with magnitude:', magnitude.toFixed(2));
         lastDetectionTimestamp.current = now;
         onPotholeDetected('normal');
       }
     }
+
   }, [onPotholeDetected]);
 
   useEffect(() => {
@@ -152,16 +157,16 @@ const useDeviceMotion = (
 
 // Icons as React components
 const ZapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="32" 
-    height="32" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="32"
+    height="32"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -169,16 +174,16 @@ const ZapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 const BellIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="32" 
-    height="32" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="32"
+    height="32"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -187,16 +192,16 @@ const BellIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 const LocationIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -205,16 +210,16 @@ const LocationIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 const MapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
@@ -224,16 +229,16 @@ const MapIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 const RefreshIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="20" 
-    height="20" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <polyline points="23 4 23 10 17 10"></polyline>
@@ -243,16 +248,16 @@ const RefreshIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 );
 
 const AlertTriangleIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     className={className}
   >
     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
@@ -262,9 +267,9 @@ const AlertTriangleIcon: React.FC<{ className?: string }> = ({ className = '' })
 );
 
 // Map Component
-const OSRMMap: React.FC<{ 
-  localPotholes: Pothole[]; 
-  allPotholes: Pothole[]; 
+const OSRMMap: React.FC<{
+  localPotholes: Pothole[];
+  allPotholes: Pothole[];
   currentLocation: { lat: number; lng: number } | null;
   onRefreshData: () => void;
   isLoading: boolean;
@@ -276,15 +281,15 @@ const OSRMMap: React.FC<{
   // Function to calculate the centroid of potholes
   const getPotholesCentroid = useCallback((potholes: Pothole[]) => {
     if (potholes.length === 0) return null;
-    
+
     let latSum = 0;
     let lngSum = 0;
-    
+
     potholes.forEach(pothole => {
       latSum += pothole.latitude;
       lngSum += pothole.longitude;
     });
-    
+
     return {
       lat: latSum / potholes.length,
       lng: lngSum / potholes.length
@@ -294,43 +299,43 @@ const OSRMMap: React.FC<{
   // Function to find the area with highest pothole concentration
   const getHighestConcentrationArea = useCallback((potholes: Pothole[]) => {
     if (potholes.length === 0) return null;
-    
+
     // Simple grid-based clustering
     const gridSize = 0.01; // ~1km grid at equator
     const gridCounts: Record<string, { count: number, latSum: number, lngSum: number }> = {};
-    
+
     potholes.forEach(pothole => {
       const gridX = Math.floor(pothole.latitude / gridSize);
       const gridY = Math.floor(pothole.longitude / gridSize);
       const gridKey = `${gridX},${gridY}`;
-      
+
       if (!gridCounts[gridKey]) {
         gridCounts[gridKey] = { count: 0, latSum: 0, lngSum: 0 };
       }
-      
+
       gridCounts[gridKey].count++;
       gridCounts[gridKey].latSum += pothole.latitude;
       gridCounts[gridKey].lngSum += pothole.longitude;
     });
-    
+
     // Find the grid with most potholes
     let maxCount = 0;
     let bestGrid = null;
-    
+
     for (const gridKey in gridCounts) {
       if (gridCounts[gridKey].count > maxCount) {
         maxCount = gridCounts[gridKey].count;
         bestGrid = gridKey;
       }
     }
-    
+
     if (bestGrid) {
       return {
         lat: gridCounts[bestGrid].latSum / gridCounts[bestGrid].count,
         lng: gridCounts[bestGrid].lngSum / gridCounts[bestGrid].count
       };
     }
-    
+
     return getPotholesCentroid(potholes);
   }, [getPotholesCentroid]);
 
@@ -360,25 +365,25 @@ const OSRMMap: React.FC<{
       if (!mapRef.current || mapInstanceRef.current) return;
 
       const L = (window as any).L;
-      
+
       // Determine the best initial view
       let defaultLat = 9.9312; // Default Kochi latitude
       let defaultLng = 76.2673; // Default Kochi longitude
       let defaultZoom = 13;
-      
+
       // Try to use the highest concentration area first
       const concentrationCenter = getHighestConcentrationArea(allPotholes);
       if (concentrationCenter) {
         defaultLat = concentrationCenter.lat;
         defaultLng = concentrationCenter.lng;
         defaultZoom = 14; // Zoom in a bit more for concentration areas
-      } 
+      }
       // Otherwise, use current location if available
       else if (currentLocation) {
         defaultLat = currentLocation.lat;
         defaultLng = currentLocation.lng;
       }
-      
+
       mapInstanceRef.current = L.map(mapRef.current).setView([defaultLat, defaultLng], defaultZoom);
 
       // Add OpenStreetMap tiles with OSRM routing capability
@@ -427,8 +432,8 @@ const OSRMMap: React.FC<{
 
     // Add all potholes from database (historical data)
     allPotholes.forEach((pothole) => {
-      const isLocal = localPotholes.some(local => 
-        Math.abs(local.latitude - pothole.latitude) < 0.00001 && 
+      const isLocal = localPotholes.some(local =>
+        Math.abs(local.latitude - pothole.latitude) < 0.00001 &&
         Math.abs(local.longitude - pothole.longitude) < 0.00001
       );
 
@@ -493,11 +498,11 @@ const OSRMMap: React.FC<{
           {isLoading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
-      
+
       <div className="w-full h-96 rounded-lg overflow-hidden shadow-lg mb-4">
         <div ref={mapRef} className="w-full h-full" />
       </div>
-      
+
       <div className="flex justify-between text-sm text-gray-400">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -530,11 +535,11 @@ const PotholeDetector: React.FC = () => {
 
   // Check if Supabase is configured
   useEffect(() => {
-    const configured = SUPABASE_URL.includes('supabase.co') && 
-                     SUPABASE_ANON_KEY.length > 50 && 
-                     !SUPABASE_ANON_KEY.includes('YOUR_ACTUAL_KEY_HERE');
+    const configured = SUPABASE_URL.includes('supabase.co') &&
+      SUPABASE_ANON_KEY.length > 50 &&
+      !SUPABASE_ANON_KEY.includes('YOUR_ACTUAL_KEY_HERE');
     setIsSupabaseConfigured(configured);
-    
+
     if (configured) {
       loadAllPotholes();
     }
@@ -542,7 +547,7 @@ const PotholeDetector: React.FC = () => {
 
   const loadAllPotholes = async () => {
     if (!isSupabaseConfigured) return;
-    
+
     setIsLoading(true);
     try {
       const data = await supabase.select('potholes', '*');
@@ -578,7 +583,7 @@ const PotholeDetector: React.FC = () => {
 
       await supabase.insert('potholes', potholeData);
       console.log('Pothole saved to Supabase successfully');
-      
+
       // Refresh the data to show the new pothole
       await loadAllPotholes();
     } catch (error) {
@@ -586,7 +591,7 @@ const PotholeDetector: React.FC = () => {
     }
   };
 
-  const recordPotholeLocation = useCallback((severity: 'normal' | 'high') => {
+  const recordPotholeLocation = useCallback(async (severity: 'normal' | 'high') => {
     if (!navigator.geolocation) {
       setStatusMessage('Error: Geolocation is not supported by your browser.');
       return;
@@ -594,6 +599,28 @@ const PotholeDetector: React.FC = () => {
 
     if (severity === 'high') {
       setEmergencyAlertMessage('Severe impact detected! Possible accident risk!');
+
+      // Make a blank POST report to the specified URL
+      await fetch('https://kegova.pythonanywhere.com/make-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // Sending a blank JSON object as the body
+      })
+        .then(response => {
+          if (response.ok) {
+            console.log('✅ Accident report successfully sent.');
+            return response.json(); // Or .text() if the response isn't JSON
+          }
+          // Handle HTTP errors
+          throw new Error(`Network response was not ok. Status: ${response.status}`);
+        })
+        .then(data => console.log('Server response:' + data))
+        .catch(error => {
+          console.error('❌ Error sending accident report:', error);
+        });
+
       setShowEmergencyAlert(true);
       setTimeout(() => setShowEmergencyAlert(false), 5000);
     }
@@ -601,27 +628,27 @@ const PotholeDetector: React.FC = () => {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const newPothole: Pothole = { 
-          latitude, 
-          longitude, 
-          time: new Date() 
+        const newPothole: Pothole = {
+          latitude,
+          longitude,
+          time: new Date()
         };
 
         console.log('Pothole Location:', newPothole);
-        
+
         // Add the new pothole to local list
         setLocalPotholes(prev => [newPothole, ...prev]);
-        setStatusMessage(severity === 'high' 
-          ? 'Severe impact recorded! Saving to database...' 
+        setStatusMessage(severity === 'high'
+          ? 'Severe impact recorded! Saving to database...'
           : 'Location recorded! Saving to community database...');
-        
+
         // Update current location
         setCurrentLocation({ lat: latitude, lng: longitude });
 
         // Save to Supabase
         await savePotholeToSupabase(newPothole);
-        setStatusMessage(severity === 'high' 
-          ? 'Severe impact saved to database!' 
+        setStatusMessage(severity === 'high'
+          ? 'Severe impact saved to database!'
           : 'Saved to community database! Monitoring...');
       },
       (error) => {
@@ -638,8 +665,8 @@ const PotholeDetector: React.FC = () => {
 
   // Custom hook for handling device motion
   const onPotholeDetected = useCallback((severity: 'normal' | 'high') => {
-    setStatusMessage(severity === 'high' 
-      ? 'Severe impact detected! Getting location...' 
+    setStatusMessage(severity === 'high'
+      ? 'Severe impact detected! Getting location...'
       : 'Pothole detected! Getting location...');
     recordPotholeLocation(severity);
   }, [recordPotholeLocation]);
@@ -669,7 +696,7 @@ const PotholeDetector: React.FC = () => {
       setStatusMessage("Error: Geolocation is not supported by your browser.");
       return;
     }
-    
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         // Set initial current location
@@ -677,7 +704,7 @@ const PotholeDetector: React.FC = () => {
           lat: position.coords.latitude,
           lng: position.coords.longitude
         });
-        
+
         // Permissions granted, now update UI and start monitoring
         setStatusMessage('Permissions granted. Monitoring for potholes...');
         setIsMonitoring(true);
@@ -740,7 +767,7 @@ const PotholeDetector: React.FC = () => {
                 <BellIcon className="text-green-400 animate-pulse" />
               )}
             </div>
-            
+
             <p className="text-gray-300 mb-6 h-10">
               {statusMessage}
             </p>
@@ -754,7 +781,7 @@ const PotholeDetector: React.FC = () => {
                   Start Monitoring
                 </button>
               )}
-              
+
               <button
                 onClick={() => {
                   setShowMap(!showMap);
@@ -773,10 +800,10 @@ const PotholeDetector: React.FC = () => {
           {/* Map Section */}
           {showMap && (
             <div className="mb-8">
-              <OSRMMap 
-                localPotholes={localPotholes} 
+              <OSRMMap
+                localPotholes={localPotholes}
                 allPotholes={allPotholes}
-                currentLocation={currentLocation} 
+                currentLocation={currentLocation}
                 onRefreshData={loadAllPotholes}
                 isLoading={isLoading}
               />
