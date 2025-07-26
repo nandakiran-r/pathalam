@@ -643,7 +643,7 @@ const PotholeDetector: React.FC = () => {
           {!isSupabaseConfigured && (
             <div className="mt-4 p-4 bg-yellow-900 border border-yellow-600 rounded-lg">
               <p className="text-yellow-200 text-sm mb-2">
-                ⚠️ Supabase not configured properly. Community features disabled.
+                ⚠️ Conneting Supabase...
               </p>
               <details className="text-xs text-yellow-300">
                 <summary className="cursor-pointer hover:text-yellow-100">Setup Instructions</summary>
