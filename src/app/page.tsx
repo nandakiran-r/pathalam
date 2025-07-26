@@ -14,6 +14,13 @@ interface DeviceMotionEventWithPermission extends DeviceMotionEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>;
 }
 
+// Extend the global DeviceMotionEvent to include requestPermission
+declare global {
+  interface DeviceMotionEventConstructor {
+    requestPermission?: () => Promise<'granted' | 'denied'>;
+  }
+}
+
 // Custom hook for device motion detection
 const useDeviceMotion = (
   isMonitoring: boolean,
@@ -112,14 +119,6 @@ const PotholeDetector: React.FC = () => {
   const [potholes, setPotholes] = useState<Pothole[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('Click "Start Monitoring" to begin.');
 
-  // Custom hook for handling device motion
-  const onPotholeDetected = useCallback(() => {
-    setStatusMessage('Pothole detected! Getting location...');
-    recordPotholeLocation();
-  }, []);
-
-  useDeviceMotion(isMonitoring, onPotholeDetected);
-
   const recordPotholeLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setStatusMessage('Error: Geolocation is not supported by your browser.');
@@ -153,13 +152,21 @@ const PotholeDetector: React.FC = () => {
     );
   }, []);
 
+  // Custom hook for handling device motion
+  const onPotholeDetected = useCallback(() => {
+    setStatusMessage('Pothole detected! Getting location...');
+    recordPotholeLocation();
+  }, [recordPotholeLocation]);
+
+  useDeviceMotion(isMonitoring, onPotholeDetected);
+
   const handleStartMonitoring = async () => {
     setStatusMessage('Requesting permissions...');
 
     // Step 1: Request Motion Sensor Permission (for iOS 13.3+)
-    if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+    if (typeof DeviceMotionEvent !== 'undefined' && 'requestPermission' in DeviceMotionEvent) {
       try {
-        const permissionState = await (DeviceMotionEvent as any).requestPermission();
+        const permissionState = await (DeviceMotionEvent as unknown as DeviceMotionEventWithPermission).requestPermission?.();
         if (permissionState !== 'granted') {
           setStatusMessage('Error: Motion sensor permission denied.');
           return;
@@ -195,15 +202,9 @@ const PotholeDetector: React.FC = () => {
       <Head>
         <title>Pothole Reporting System</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link 
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" 
-          rel="stylesheet" 
-        />
       </Head>
 
-      <div className="min-h-screen flex flex-col items-center p-4 bg-gray-900 text-white font-inter">
+      <div className="min-h-screen flex flex-col items-center p-4 bg-gray-900 text-white font-sans">
         <div className="w-full max-w-2xl mx-auto">
           {/* Header Section */}
           <header className="text-center my-8">
@@ -246,7 +247,7 @@ const PotholeDetector: React.FC = () => {
                   Detected Potholes
                 </h2>
                 <ul className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {potholes.map((pothole, index) => (
+                  {potholes.map((pothole) => (
                     <li
                       key={`${pothole.latitude}-${pothole.longitude}-${pothole.time.getTime()}`}
                       className="bg-gray-700 p-4 rounded-lg flex items-start space-x-4 shadow-md animate-fade-in"
@@ -272,10 +273,6 @@ const PotholeDetector: React.FC = () => {
       </div>
 
       <style jsx>{`
-        .font-inter {
-          font-family: 'Inter', sans-serif;
-        }
-        
         @keyframes fade-in {
           from { 
             opacity: 0; 
