@@ -227,6 +227,67 @@ const OSRMMap: React.FC<{
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
 
+  // Function to calculate the centroid of potholes
+  const getPotholesCentroid = useCallback((potholes: Pothole[]) => {
+    if (potholes.length === 0) return null;
+    
+    let latSum = 0;
+    let lngSum = 0;
+    
+    potholes.forEach(pothole => {
+      latSum += pothole.latitude;
+      lngSum += pothole.longitude;
+    });
+    
+    return {
+      lat: latSum / potholes.length,
+      lng: lngSum / potholes.length
+    };
+  }, []);
+
+  // Function to find the area with highest pothole concentration
+  const getHighestConcentrationArea = useCallback((potholes: Pothole[]) => {
+    if (potholes.length === 0) return null;
+    
+    // Simple grid-based clustering
+    const gridSize = 0.01; // ~1km grid at equator
+    const gridCounts: Record<string, { count: number, latSum: number, lngSum: number }> = {};
+    
+    potholes.forEach(pothole => {
+      const gridX = Math.floor(pothole.latitude / gridSize);
+      const gridY = Math.floor(pothole.longitude / gridSize);
+      const gridKey = `${gridX},${gridY}`;
+      
+      if (!gridCounts[gridKey]) {
+        gridCounts[gridKey] = { count: 0, latSum: 0, lngSum: 0 };
+      }
+      
+      gridCounts[gridKey].count++;
+      gridCounts[gridKey].latSum += pothole.latitude;
+      gridCounts[gridKey].lngSum += pothole.longitude;
+    });
+    
+    // Find the grid with most potholes
+    let maxCount = 0;
+    let bestGrid = null;
+    
+    for (const gridKey in gridCounts) {
+      if (gridCounts[gridKey].count > maxCount) {
+        maxCount = gridCounts[gridKey].count;
+        bestGrid = gridKey;
+      }
+    }
+    
+    if (bestGrid) {
+      return {
+        lat: gridCounts[bestGrid].latSum / gridCounts[bestGrid].count,
+        lng: gridCounts[bestGrid].lngSum / gridCounts[bestGrid].count
+      };
+    }
+    
+    return getPotholesCentroid(potholes);
+  }, [getPotholesCentroid]);
+
   useEffect(() => {
     // Load Leaflet CSS and JS
     const loadLeaflet = async () => {
@@ -254,11 +315,25 @@ const OSRMMap: React.FC<{
 
       const L = (window as any).L;
       
-      // Initialize map with default location (Kochi, Kerala)
-      const defaultLat = currentLocation?.lat || 9.9312;
-      const defaultLng = currentLocation?.lng || 76.2673;
+      // Determine the best initial view
+      let defaultLat = 9.9312; // Default Kochi latitude
+      let defaultLng = 76.2673; // Default Kochi longitude
+      let defaultZoom = 13;
       
-      mapInstanceRef.current = L.map(mapRef.current).setView([defaultLat, defaultLng], 13);
+      // Try to use the highest concentration area first
+      const concentrationCenter = getHighestConcentrationArea(allPotholes);
+      if (concentrationCenter) {
+        defaultLat = concentrationCenter.lat;
+        defaultLng = concentrationCenter.lng;
+        defaultZoom = 14; // Zoom in a bit more for concentration areas
+      } 
+      // Otherwise, use current location if available
+      else if (currentLocation) {
+        defaultLat = currentLocation.lat;
+        defaultLng = currentLocation.lng;
+      }
+      
+      mapInstanceRef.current = L.map(mapRef.current).setView([defaultLat, defaultLng], defaultZoom);
 
       // Add OpenStreetMap tiles with OSRM routing capability
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -290,7 +365,7 @@ const OSRMMap: React.FC<{
         mapInstanceRef.current = null;
       }
     };
-  }, [currentLocation]);
+  }, [allPotholes, currentLocation, getHighestConcentrationArea]);
 
   // Update pothole markers when potholes change
   useEffect(() => {
